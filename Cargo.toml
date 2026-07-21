@@ -1,0 +1,18 @@
+[workspace]
+resolver = "2"
+members = [
+    "tracelet-core",
+    "tracelet-layer",
+    "tracelet",
+    "examples/minimal",
+]
+
+[workspace.package]
+version = "0.1.0"
+edition = "2021"
+license = "MIT OR Apache-2.0"
+repository = "https://github.com/REPLACE_ME/tracelet"
+
+[workspace.dependencies]
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["registry"] }

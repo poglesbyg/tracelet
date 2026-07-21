@@ -1,0 +1,13 @@
+[package]
+name = "tracelet"
+description = "#[tracing::instrument] you already use, minus the OpenTelemetry dependency tree."
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+
+[dependencies]
+tracelet-core = { path = "../tracelet-core", version = "0.1.0" }
+tracelet-layer = { path = "../tracelet-layer", version = "0.1.0" }
+tracing = { workspace = true }
+tracing-subscriber = { workspace = true }

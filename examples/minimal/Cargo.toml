@@ -1,0 +1,10 @@
+[package]
+name = "minimal"
+publish = false
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[dependencies]
+tracelet = { path = "../../tracelet" }
+tracing = { workspace = true }
