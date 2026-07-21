@@ -6,6 +6,7 @@ use std::time::Duration;
 
 use tracelet_core::RingBuffer;
 use tracelet_layer::CaptureLayer;
+use tracelet_otlp::OtlpExporterConfig;
 use tracing_subscriber::layer::SubscriberExt;
 use tracing_subscriber::Registry;
 
@@ -14,8 +15,8 @@ const FLUSH_INTERVAL: Duration = Duration::from_secs(2);
 
 pub struct TracerConfig {
     pub service_name: String,
-    /// Unused until the tracelet-otlp exporter lands (M1). Spans are printed
-    /// to stdout in the meantime.
+    /// OTLP/HTTP traces endpoint, e.g. "http://localhost:4318/v1/traces".
+    /// When None, captured spans are printed to stdout instead.
     pub otlp_endpoint: Option<String>,
     /// Unused until head sampling lands (M3). Every span is captured.
     pub sample_ratio: f64,
@@ -53,7 +54,18 @@ pub fn init(config: TracerConfig) -> Result<(), InitError> {
 
     tracing::subscriber::set_global_default(subscriber).map_err(InitError::SetGlobalDefault)?;
 
-    spawn_stdout_flusher(buffer, config.service_name);
+    match config.otlp_endpoint {
+        Some(endpoint) => tracelet_otlp::spawn_exporter(
+            buffer,
+            OtlpExporterConfig {
+                endpoint,
+                service_name: config.service_name,
+                ..Default::default()
+            },
+        ),
+        None => spawn_stdout_flusher(buffer, config.service_name),
+    }
+
     Ok(())
 }
 

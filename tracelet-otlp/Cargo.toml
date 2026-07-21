@@ -1,0 +1,15 @@
+[package]
+name = "tracelet-otlp"
+description = "OTLP/HTTP protobuf encoding and export for tracelet."
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+
+[dependencies]
+prost = "0.14.4"
+tracelet-core = { path = "../tracelet-core", version = "0.1.0" }
+ureq = { version = "3.3.0", default-features = false, features = ["rustls"] }
+
+[dev-dependencies]
+prost = "0.14.4"

@@ -41,15 +41,19 @@ These are deliberate scope cuts, not oversights:
   code:
   - `tracelet-core` — span record types and the ring buffer. No I/O, no async.
   - `tracelet-layer` — the `tracing_subscriber::Layer` implementation.
-  - `tracelet-otlp` *(M1)* — protobuf encoding + HTTP export.
+  - `tracelet-otlp` — protobuf encoding + HTTP export.
   - `tracelet` — the public facade crate: `TracerConfig` + `init()`.
 
 ## Roadmap
 
 - [x] **M0 — Skeleton.** Workspace scaffold, `TracerConfig`, `init()` installs the layer.
       Spans are captured into the ring buffer and printed to stdout (stand-in for export).
-- [ ] **M1 — OTLP export.** Protobuf encoding for OTLP/HTTP trace export, background batching
-      flush thread posting to a real collector (Jaeger / Grafana Tempo).
+- [x] **M1 — OTLP export.** `tracelet-otlp` encodes OTLP/HTTP trace protobuf (hand-written
+      structs matching the official field tags, via `prost`) and a background thread batches
+      and POSTs them with `ureq`. Verified against a local mock OTLP receiver that decodes the
+      wire bytes end to end (no Docker in the dev environment this shipped from, so this
+      hasn't yet been pointed at a real Jaeger/Tempo instance — the wire format is verified,
+      the "does a real collector's UI render it" step is still open).
 - [ ] **M2 — Propagation + real service.** W3C `traceparent` inject/extract helpers; an `axum`
       example with two services sharing one trace across a network hop.
 - [ ] **M3 — Sampling + overhead validation.** Probabilistic head sampling; a published

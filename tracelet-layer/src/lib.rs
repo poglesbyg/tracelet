@@ -35,6 +35,7 @@ impl Visit for AttributeVisitor {
 
 // Held in each span's extensions between on_new_span and on_close.
 struct SpanState {
+    trace_id: u128,
     parent_id: Option<u64>,
     name: String,
     start: SystemTime,
@@ -51,9 +52,15 @@ where
         let mut visitor = AttributeVisitor::default();
         attrs.record(&mut visitor);
 
-        let parent_id = span.parent().map(|p| p.id().into_u64());
+        let parent = span.parent();
+        let parent_id = parent.as_ref().map(|p| p.id().into_u64());
+        let trace_id = parent
+            .as_ref()
+            .and_then(|p| p.extensions().get::<SpanState>().map(|s| s.trace_id))
+            .unwrap_or_else(tracelet_core::generate_trace_id);
 
         span.extensions_mut().insert(SpanState {
+            trace_id,
             parent_id,
             name: attrs.metadata().name().to_string(),
             start: SystemTime::now(),
@@ -77,6 +84,7 @@ where
 
         if let Some(state) = state {
             self.buffer.push(SpanRecord {
+                trace_id: state.trace_id,
                 span_id: id.into_u64(),
                 parent_id: state.parent_id,
                 name: state.name,

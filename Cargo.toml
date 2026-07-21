@@ -3,6 +3,7 @@ resolver = "2"
 members = [
     "tracelet-core",
     "tracelet-layer",
+    "tracelet-otlp",
     "tracelet",
     "examples/minimal",
 ]
