@@ -50,10 +50,9 @@ These are deliberate scope cuts, not oversights:
       Spans are captured into the ring buffer and printed to stdout (stand-in for export).
 - [x] **M1 — OTLP export.** `tracelet-otlp` encodes OTLP/HTTP trace protobuf (hand-written
       structs matching the official field tags, via `prost`) and a background thread batches
-      and POSTs them with `ureq`. Verified against a local mock OTLP receiver that decodes the
-      wire bytes end to end (no Docker in the dev environment this shipped from, so this
-      hasn't yet been pointed at a real Jaeger/Tempo instance — the wire format is verified,
-      the "does a real collector's UI render it" step is still open).
+      and POSTs them with `ureq`. Verified two ways: an integration test decoding the wire
+      bytes against a mock HTTP receiver, and end-to-end against a real local Jaeger instance
+      (spans confirmed via Jaeger's query API — correct names, durations, and attributes).
 - [ ] **M2 — Propagation + real service.** W3C `traceparent` inject/extract helpers; an `axum`
       example with two services sharing one trace across a network hop.
 - [ ] **M3 — Sampling + overhead validation.** Probabilistic head sampling; a published
@@ -74,6 +73,19 @@ fn do_work(iteration: u32) {
 ```
 
 See [`examples/minimal`](examples/minimal) for a runnable version.
+
+### Testing against a local collector
+
+```sh
+docker run -d --name tracelet-jaeger \
+  -p 16686:16686 -p 4317:4317 -p 4318:4318 \
+  -e COLLECTOR_OTLP_ENABLED=true \
+  jaegertracing/all-in-one:latest
+
+TRACELET_OTLP_ENDPOINT=http://localhost:4318/v1/traces cargo run -p minimal
+```
+
+Then check [localhost:16686](http://localhost:16686) for the `minimal-example` service.
 
 ## License
 
