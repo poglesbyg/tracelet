@@ -6,7 +6,8 @@
 that batches spans and exports them as OTLP — built to be a fraction of the dependency footprint
 of `opentelemetry` + `opentelemetry-otlp` + `tracing-opentelemetry`, with no forced async runtime.
 
-Status: **early, pre-release.** M0 (capture spans, no export yet) is done. See Roadmap.
+Status: **early, pre-release.** M0–M2 are done: capture, OTLP export, and cross-service
+propagation. See Roadmap.
 
 ## Why
 
@@ -53,8 +54,15 @@ These are deliberate scope cuts, not oversights:
       and POSTs them with `ureq`. Verified two ways: an integration test decoding the wire
       bytes against a mock HTTP receiver, and end-to-end against a real local Jaeger instance
       (spans confirmed via Jaeger's query API — correct names, durations, and attributes).
-- [ ] **M2 — Propagation + real service.** W3C `traceparent` inject/extract helpers; an `axum`
-      example with two services sharing one trace across a network hop.
+- [x] **M2 — Propagation + real service.** W3C `traceparent` format/parse in `tracelet-core`,
+      plus a reserved-field convention (`tracelet-layer` recognizes two special span field
+      names and uses them to override a span's trace context — see Propagation below). An
+      `examples/axum-service` with two independent services shares one trace across a real
+      network hop, verified against local Jaeger: one `traceID`, two distinct span ids,
+      correct parent linkage. Along the way, fixed a real bug this milestone's test caught —
+      span ids were derived from `tracing::Id`, which restarts at 1 in every process and
+      collided the instant two services shared a trace; span ids are now generated
+      independently of `tracing::Id` (see `generate_span_id` in `tracelet-core`).
 - [ ] **M3 — Sampling + overhead validation.** Probabilistic head sampling; a published
       benchmark of per-span overhead and dependency-tree size versus the standard OTel Rust stack.
 
@@ -74,6 +82,49 @@ fn do_work(iteration: u32) {
 
 See [`examples/minimal`](examples/minimal) for a runnable version.
 
+## Propagation
+
+To carry a trace across a network hop:
+
+**Client side** — inject the current span's context into an outgoing request:
+
+```rust
+let mut request = client.get(url);
+if let Some(traceparent) = tracelet::current_traceparent() {
+    request = request.header("traceparent", traceparent);
+}
+```
+
+**Server side** — extract the incoming header and record it on the handler's span. The two
+field names are fixed by `tracelet::REMOTE_TRACE_ID_FIELD` /
+`REMOTE_PARENT_SPAN_ID_FIELD`, but `#[instrument(fields(...))]` needs them as literal
+identifiers at compile time, so spell them out (they're asserted to match those constants'
+values, not aliased to them):
+
+```rust
+#[tracing::instrument(
+    skip(headers),
+    fields(otel_remote_trace_id = tracing::field::Empty, otel_remote_parent_span_id = tracing::field::Empty)
+)]
+async fn handler(headers: HeaderMap) -> impl IntoResponse {
+    if let Some((trace_id, parent_span_id)) = headers
+        .get("traceparent")
+        .and_then(|v| v.to_str().ok())
+        .and_then(tracelet::parse_traceparent)
+    {
+        let span = tracing::Span::current();
+        span.record(tracelet::REMOTE_TRACE_ID_FIELD, format!("{trace_id:032x}").as_str());
+        span.record(tracelet::REMOTE_PARENT_SPAN_ID_FIELD, format!("{parent_span_id:016x}").as_str());
+    }
+    // ...
+}
+```
+
+`tracelet-layer` strips these two fields from what's exported as span attributes — they only
+ever affect the span's trace context. See [`examples/axum-service`](examples/axum-service) for
+two full, independent services (each with its own `tracelet::init()` and OTLP service name)
+sharing a trace this way.
+
 ### Testing against a local collector
 
 ```sh
@@ -86,6 +137,17 @@ TRACELET_OTLP_ENDPOINT=http://localhost:4318/v1/traces cargo run -p minimal
 ```
 
 Then check [localhost:16686](http://localhost:16686) for the `minimal-example` service.
+
+For the two-service propagation example, run each binary in its own terminal, then hit the edge
+service:
+
+```sh
+TRACELET_OTLP_ENDPOINT=http://localhost:4318/v1/traces cargo run -p axum-service --bin downstream
+TRACELET_OTLP_ENDPOINT=http://localhost:4318/v1/traces cargo run -p axum-service --bin edge
+curl http://localhost:4000/edge
+```
+
+Jaeger will show `edge-service` and `downstream-service` as separate services sharing one trace.
 
 ## License
 

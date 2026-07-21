@@ -10,8 +10,18 @@ use tracelet_otlp::OtlpExporterConfig;
 use tracing_subscriber::layer::SubscriberExt;
 use tracing_subscriber::Registry;
 
+pub use tracelet_core::{format_traceparent, parse_traceparent, REMOTE_PARENT_SPAN_ID_FIELD, REMOTE_TRACE_ID_FIELD};
+
 const RING_BUFFER_CAPACITY: usize = 1024;
 const FLUSH_INTERVAL: Duration = Duration::from_secs(2);
+
+/// The `traceparent` header value for the span currently entered on this
+/// thread, if any -- attach this to an outgoing request to propagate the
+/// trace across the network hop. Returns `None` outside of any span.
+pub fn current_traceparent() -> Option<String> {
+    let (trace_id, span_id) = tracelet_core::context::current()?;
+    Some(format_traceparent(trace_id, span_id))
+}
 
 pub struct TracerConfig {
     pub service_name: String,

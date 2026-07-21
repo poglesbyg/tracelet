@@ -4,6 +4,11 @@ use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::Mutex;
 use std::time::{SystemTime, UNIX_EPOCH};
 
+pub mod context;
+mod propagation;
+
+pub use propagation::{format_traceparent, parse_traceparent, REMOTE_PARENT_SPAN_ID_FIELD, REMOTE_TRACE_ID_FIELD};
+
 #[derive(Debug, Clone)]
 pub struct SpanRecord {
     pub trace_id: u128,
@@ -15,7 +20,7 @@ pub struct SpanRecord {
     pub attributes: Vec<(String, String)>,
 }
 
-static TRACE_ID_COUNTER: AtomicU64 = AtomicU64::new(0);
+static ID_COUNTER: AtomicU64 = AtomicU64::new(0);
 
 /// Generates a 128-bit trace id for a root span. Not cryptographically
 /// random -- mixes wall-clock time, a process-local counter, and the process
@@ -27,12 +32,26 @@ pub fn generate_trace_id() -> u128 {
         .duration_since(UNIX_EPOCH)
         .map(|d| d.as_nanos())
         .unwrap_or(0);
-    let counter = TRACE_ID_COUNTER.fetch_add(1, Ordering::Relaxed);
+    let counter = ID_COUNTER.fetch_add(1, Ordering::Relaxed);
     let pid = std::process::id() as u64;
 
     let high = mix((nanos >> 64) as u64, pid);
     let low = mix(nanos as u64, counter);
     ((high as u128) << 64) | low as u128
+}
+
+/// Generates a 64-bit span id. Deliberately *not* derived from
+/// `tracing::Id`: that counter restarts at 1 in every process and tracing
+/// can recycle ids after a span closes, so it collides across two services
+/// in the same trace (and, in principle, across two closed spans in the same
+/// process). Same non-cryptographic mixing approach as `generate_trace_id`.
+pub fn generate_span_id() -> u64 {
+    let nanos = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .map(|d| d.as_nanos() as u64)
+        .unwrap_or(0);
+    let counter = ID_COUNTER.fetch_add(1, Ordering::Relaxed);
+    mix(nanos, counter ^ (std::process::id() as u64))
 }
 
 fn mix(a: u64, b: u64) -> u64 {

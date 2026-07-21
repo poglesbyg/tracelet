@@ -1,0 +1,13 @@
+[package]
+name = "axum-service"
+publish = false
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[dependencies]
+axum = "0.8.9"
+reqwest = { version = "0.13.4", default-features = false, features = ["rustls"] }
+tokio = { version = "1.53.1", features = ["rt-multi-thread", "macros"] }
+tracelet = { path = "../../tracelet" }
+tracing = { workspace = true }

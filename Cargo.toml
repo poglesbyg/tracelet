@@ -6,6 +6,7 @@ members = [
     "tracelet-otlp",
     "tracelet",
     "examples/minimal",
+    "examples/axum-service",
 ]
 
 [workspace.package]
